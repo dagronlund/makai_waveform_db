@@ -50,7 +50,7 @@ pub enum WaveformSignalResult<'a> {
     Real(&'a WaveformSignalReal),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum WaveformValueResult {
     Vector(BitVector, usize), // value, timestamp index
     Real(f64, usize),         // value, timestamp index
@@ -383,5 +383,11 @@ impl Waveform {
         timestamp_index: usize,
     ) -> Option<WaveformValueResult> {
         self.search_value_bit_index(idcode, timestamp_index, None)
+    }
+}
+
+impl Default for Waveform {
+    fn default() -> Self {
+        Self::new()
     }
 }
