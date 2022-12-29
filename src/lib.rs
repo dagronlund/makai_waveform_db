@@ -48,7 +48,34 @@ use crate::signal_vector::*;
 pub enum WaveformSignalResult<'a> {
     Vector(&'a WaveformSignalVector),
     Real(&'a WaveformSignalReal),
-    None,
+}
+
+#[derive(Clone, Debug)]
+pub enum WaveformValueResult {
+    Vector(BitVector, usize), // value, timestamp index
+    Real(f64, usize),         // value, timestamp index
+}
+
+impl WaveformValueResult {
+    pub fn is_unknown(&self) -> bool {
+        match self {
+            Self::Vector(bv, _) => bv.is_unknown(),
+            _ => false,
+        }
+    }
+
+    pub fn is_high_impedance(&self) -> bool {
+        match self {
+            Self::Vector(bv, _) => bv.is_high_impedance(),
+            _ => false,
+        }
+    }
+
+    pub fn get_timestamp_index(&self) -> usize {
+        match self {
+            Self::Vector(_, index) | Self::Real(_, index) => *index,
+        }
+    }
 }
 
 pub struct Waveform {
@@ -119,13 +146,13 @@ impl Waveform {
         self.real_signals.get(&id)
     }
 
-    pub fn get_signal<'a>(&'a self, id: usize) -> WaveformSignalResult<'a> {
+    pub fn get_signal<'a>(&'a self, id: usize) -> Option<WaveformSignalResult<'a>> {
         if let Some(signal) = self.vector_signals.get(&id) {
-            WaveformSignalResult::Vector(signal)
+            Some(WaveformSignalResult::Vector(signal))
         } else if let Some(signal) = self.real_signals.get(&id) {
-            WaveformSignalResult::Real(signal)
+            Some(WaveformSignalResult::Real(signal))
         } else {
-            WaveformSignalResult::None
+            None
         }
     }
 
@@ -316,5 +343,45 @@ impl Waveform {
         } else {
             None
         }
+    }
+
+    pub fn search_value_bit_index(
+        &self,
+        idcode: usize,
+        timestamp_index: usize,
+        bit_index: Option<usize>,
+    ) -> Option<WaveformValueResult> {
+        match self.get_signal(idcode) {
+            Some(WaveformSignalResult::Vector(signal)) => {
+                let Some(pos) = signal.get_history().search_timestamp_index(timestamp_index) else {
+                    return None
+                };
+                let pos = pos.get_index();
+                let bv = signal.get_bitvector(pos.get_value_index());
+                let bv = if let Some(index) = bit_index {
+                    BitVector::from(bv.get_bit(index))
+                } else {
+                    bv
+                };
+                Some(WaveformValueResult::Vector(bv, pos.get_timestamp_index()))
+            }
+            Some(WaveformSignalResult::Real(signal)) => {
+                let Some(pos) = signal.get_history().search_timestamp_index(timestamp_index) else {
+                    return None
+                };
+                let pos = pos.get_index();
+                let r = signal.get_real(pos.get_value_index());
+                Some(WaveformValueResult::Real(r, pos.get_timestamp_index()))
+            }
+            None => None,
+        }
+    }
+
+    pub fn search_value(
+        &self,
+        idcode: usize,
+        timestamp_index: usize,
+    ) -> Option<WaveformValueResult> {
+        self.search_value_bit_index(idcode, timestamp_index, None)
     }
 }
