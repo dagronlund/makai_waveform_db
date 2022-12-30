@@ -45,6 +45,14 @@ use crate::errors::*;
 use crate::signal_real::*;
 use crate::signal_vector::*;
 
+#[derive(Clone, Debug, PartialEq)]
+pub enum WaveformSearchMode {
+    Before,
+    After,
+    Closest,
+    Exact,
+}
+
 pub enum WaveformSignalResult<'a> {
     Vector(&'a WaveformSignalVector),
     Real(&'a WaveformSignalReal),
@@ -267,81 +275,54 @@ impl Waveform {
         }
     }
 
-    fn search_timestamp_recursive(
+    /// Binary search for the index of the requested timestamp, if the exact
+    /// timestamp exists. Otherwise, the search mode is used to determine where
+    /// else to look to look for a timestamp, either closest of any timestamp,
+    /// closest timestamp before, or closest timestamp after. If a timestamp
+    /// is found, this function returns a tuple (timestamp, timestamp index)
+    pub fn search_timestamp(
         &self,
         timestamp: u64,
-        range: std::ops::Range<usize>,
-        after: bool,
+        search_mode: WaveformSearchMode,
     ) -> Option<usize> {
-        let not_found = if after {
-            self.timestamps[range.end - 1] < timestamp
-        } else {
-            timestamp < self.timestamps[range.start]
-        };
-        if not_found {
-            None
-        } else if range.len() > 1 {
-            let mid = (range.start + range.end) / 2;
-            let look_before = if after {
-                timestamp <= self.timestamps[mid - 1]
-            } else {
-                timestamp < self.timestamps[mid]
+        // https://stackoverflow.com/questions/30245166/find-the-nearest-closest-value-in-a-sorted-list
+        let (mut start, mut end) = (0, self.timestamps.len() - 1);
+        // If the search timestamp is outside of the range of timestamps
+        if timestamp < self.timestamps[start] {
+            return match search_mode {
+                WaveformSearchMode::Exact | WaveformSearchMode::Before => None,
+                WaveformSearchMode::After | WaveformSearchMode::Closest => Some(start),
             };
-            if look_before {
-                self.search_timestamp_recursive(timestamp, range.start..mid, after)
-            } else {
-                self.search_timestamp_recursive(timestamp, mid..range.end, after)
-            }
-        } else {
-            Some(range.start)
+        } else if self.timestamps[end] < timestamp {
+            return match search_mode {
+                WaveformSearchMode::Exact | WaveformSearchMode::After => None,
+                WaveformSearchMode::Before | WaveformSearchMode::Closest => Some(end),
+            };
         }
-    }
-
-    /// Binary search for the index of the requested timestamp, or if not
-    /// found the timestamp immediately before it
-    pub fn search_timestamp(&self, timestamp: u64) -> Option<usize> {
-        self.search_timestamp_recursive(timestamp, 0..self.timestamps.len(), false)
-    }
-
-    /// Binary search for the index of the requested timestamp, or if not
-    /// found the timestamp immediately after it
-    pub fn search_timestamp_after(&self, timestamp: u64) -> Option<usize> {
-        self.search_timestamp_recursive(timestamp, 0..self.timestamps.len(), true)
-    }
-
-    /// Returns the range of timestamp indices that either contains the given
-    /// timestamps (greedy) or is contained by the given timestamps (non-greedy)
-    pub fn search_timestamp_range(
-        &self,
-        timestamp_range: std::ops::Range<u64>,
-        greedy: bool,
-    ) -> Option<std::ops::Range<usize>> {
-        // First find the non-greedy bounds
-        let mut start = self.search_timestamp_after(timestamp_range.start);
-        let mut end = self.search_timestamp(timestamp_range.end);
-        if greedy {
-            // If the greedy bounds exist, use them
-            if let Some(s) = self.search_timestamp(timestamp_range.start) {
-                start = Some(s);
+        // Iterate through until start == end + 1
+        while start <= end {
+            let mid = (start + end) / 2;
+            let mid_value = self.timestamps[mid];
+            if timestamp < mid_value {
+                end = mid - 1;
+            } else if timestamp > mid_value {
+                start = mid + 1;
+            } else {
+                return Some(mid);
             }
-            if let Some(e) = self.search_timestamp_after(timestamp_range.end) {
-                end = Some(e);
-            }
-        } else {
-            // If not greedy then make sure the end index is not at the same
-            // timestamp as the timestamp range end, otherwise step back one
-            if let Some(e) = end {
-                if self.timestamps[e] == timestamp_range.end {
-                    if let Some(e) = self.search_timestamp(timestamp_range.end - 1) {
-                        end = Some(e);
-                    }
+        }
+        // Select result based on search mode
+        match search_mode {
+            WaveformSearchMode::Exact => None,
+            WaveformSearchMode::Before => Some(end),
+            WaveformSearchMode::After => Some(start),
+            WaveformSearchMode::Closest => {
+                if (self.timestamps[start] - timestamp) < (timestamp - self.timestamps[end]) {
+                    Some(start)
+                } else {
+                    Some(end)
                 }
             }
-        }
-        if let (Some(start), Some(end)) = (start, end) {
-            Some(start..end)
-        } else {
-            None
         }
     }
 
