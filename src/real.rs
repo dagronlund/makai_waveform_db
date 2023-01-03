@@ -43,4 +43,14 @@ impl WaveformSignalReal {
     pub fn len(&self) -> usize {
         self.vector_index
     }
+
+    pub fn is_empty(&self) -> bool {
+        self.vector_index == 0
+    }
+}
+
+impl Default for WaveformSignalReal {
+    fn default() -> Self {
+        Self::new()
+    }
 }

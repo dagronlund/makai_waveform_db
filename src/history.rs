@@ -1,6 +1,8 @@
 pub mod block;
 pub mod index;
 
+use std::cmp::Ordering;
+
 use crate::history::block::WaveformHistoryBlock;
 use crate::history::block::WaveformHistoryBlockIter;
 use crate::history::index::WaveformHistoryIndex;
@@ -140,12 +142,10 @@ impl WaveformHistory {
         while start <= end {
             let mid = (start + end) / 2;
             let mid_value = self.get_block(mid).get_timestamp_index();
-            if timestamp_index < mid_value {
-                end = mid - 1;
-            } else if timestamp_index > mid_value {
-                start = mid + 1;
-            } else {
-                return Some(mid);
+            match timestamp_index.cmp(&mid_value) {
+                Ordering::Less => end = mid - 1,
+                Ordering::Greater => start = mid + 1,
+                Ordering::Equal => return Some(mid),
             }
         }
         // Select result based on search mode
@@ -215,6 +215,12 @@ impl WaveformHistory {
             (WaveformSearchMode::Closest, None) => Some(index_before),
             (WaveformSearchMode::Exact, _) => None,
         }
+    }
+}
+
+impl Default for WaveformHistory {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

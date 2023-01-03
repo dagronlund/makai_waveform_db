@@ -1,4 +1,4 @@
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct WaveformHistoryIndex {
     pub timestamp_index: usize,
     pub value_index: usize,

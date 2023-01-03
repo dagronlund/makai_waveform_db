@@ -28,7 +28,7 @@ impl<'a> Iterator for BitVectorIter<'a> {
 impl BitVector {
     pub fn iter(&self) -> BitVectorIter {
         BitVectorIter {
-            bv: &self,
+            bv: self,
             bits: self.get_bit_width(),
             index: 0,
             is_four_state: self.is_four_state(),

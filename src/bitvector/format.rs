@@ -147,7 +147,7 @@ impl BitVector {
             }
         }
 
-        format!("{}", Fmt(|f| self.fmt_radix(f, radix.clone())))
+        format!("{}", Fmt(|f| self.fmt_radix(f, radix)))
     }
 }
 

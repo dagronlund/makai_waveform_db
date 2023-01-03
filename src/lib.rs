@@ -38,6 +38,7 @@ pub mod history;
 pub mod real;
 pub mod vector;
 
+use std::cmp::Ordering;
 use std::collections::HashMap;
 
 use crate::bitvector::BitVector;
@@ -45,7 +46,7 @@ use crate::errors::*;
 use crate::real::*;
 use crate::vector::*;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum WaveformSearchMode {
     Before,
     After,
@@ -154,7 +155,7 @@ impl Waveform {
         self.real_signals.get(&id)
     }
 
-    pub fn get_signal<'a>(&'a self, id: usize) -> Option<WaveformSignalResult<'a>> {
+    pub fn get_signal(&self, id: usize) -> Option<WaveformSignalResult<'_>> {
         if let Some(signal) = self.vector_signals.get(&id) {
             Some(WaveformSignalResult::Vector(signal))
         } else if let Some(signal) = self.real_signals.get(&id) {
@@ -169,16 +170,14 @@ impl Waveform {
     }
 
     pub fn insert_timestamp(&mut self, timestamp: u64) -> WaveformResult<()> {
-        if let Some(last) = self.timestamps.last() {
-            if timestamp < *last {
-                return Err(WaveformError::DecreasingTimestamp {
-                    timestamp: timestamp,
-                });
-            } else if timestamp > *last {
-                self.timestamps.push(timestamp);
-            }
-        } else {
+        let Some(last) = self.timestamps.last() else {
             self.timestamps.push(timestamp);
+            return Ok(());
+        };
+        match timestamp.cmp(last) {
+            Ordering::Less => return Err(WaveformError::DecreasingTimestamp { timestamp }),
+            Ordering::Greater => self.timestamps.push(timestamp),
+            Ordering::Equal => {}
         }
         Ok(())
     }
@@ -187,11 +186,11 @@ impl Waveform {
         let signal = if let Some(signal) = self.vector_signals.get_mut(&id) {
             signal
         } else {
-            return Err(WaveformError::InvalidId { id: id });
+            return Err(WaveformError::InvalidId { id });
         };
         if signal.get_width() < value.get_bit_width() {
             return Err(WaveformError::InvalidWidth {
-                id: id,
+                id,
                 expected: signal.get_width(),
                 actual: value.get_bit_width(),
             });
@@ -204,7 +203,7 @@ impl Waveform {
         let signal = if let Some(signal) = self.real_signals.get_mut(&id) {
             signal
         } else {
-            return Err(WaveformError::InvalidId { id: id });
+            return Err(WaveformError::InvalidId { id });
         };
         signal.update(self.timestamps.len() - 1, value);
         Ok(())
@@ -216,10 +215,10 @@ impl Waveform {
 
     pub fn get_block_size(&self) -> usize {
         let mut size = 0;
-        for (_, signal) in &self.vector_signals {
+        for signal in self.vector_signals.values() {
             size += signal.get_history().get_block_size();
         }
-        for (_, signal) in &self.real_signals {
+        for signal in self.real_signals.values() {
             size += signal.get_history().get_block_size();
         }
         size
@@ -227,10 +226,10 @@ impl Waveform {
 
     pub fn get_vector_size(&self) -> usize {
         let mut size = 0;
-        for (_, signal) in &self.vector_signals {
+        for signal in self.vector_signals.values() {
             size += signal.get_vector_size();
         }
-        for (_, signal) in &self.real_signals {
+        for signal in self.real_signals.values() {
             size += signal.get_vector_size();
         }
         size
@@ -238,13 +237,13 @@ impl Waveform {
 
     pub fn count_empty(&self) -> usize {
         let mut empty = 0;
-        for (_, signal) in &self.vector_signals {
-            if signal.len() == 0 {
+        for signal in self.vector_signals.values() {
+            if signal.is_empty() {
                 empty += 1;
             }
         }
-        for (_, signal) in &self.real_signals {
-            if signal.len() == 0 {
+        for signal in self.real_signals.values() {
+            if signal.is_empty() {
                 empty += 1;
             }
         }
@@ -253,12 +252,12 @@ impl Waveform {
 
     pub fn count_one(&self) -> usize {
         let mut empty = 0;
-        for (_, signal) in &self.vector_signals {
+        for signal in self.vector_signals.values() {
             if signal.len() == 1 {
                 empty += 1;
             }
         }
-        for (_, signal) in &self.real_signals {
+        for signal in self.real_signals.values() {
             if signal.len() == 1 {
                 empty += 1;
             }
@@ -303,12 +302,10 @@ impl Waveform {
         while start <= end {
             let mid = (start + end) / 2;
             let mid_value = self.timestamps[mid];
-            if timestamp < mid_value {
-                end = mid - 1;
-            } else if timestamp > mid_value {
-                start = mid + 1;
-            } else {
-                return Some(mid);
+            match timestamp.cmp(&mid_value) {
+                Ordering::Less => end = mid - 1,
+                Ordering::Greater => start = mid + 1,
+                Ordering::Equal => return Some(mid),
             }
         }
         // Select result based on search mode

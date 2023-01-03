@@ -1,7 +1,9 @@
+use std::cmp::Ordering;
+
 use crate::history::index::WaveformHistoryIndex;
 use crate::history::BLOCK_SIZE;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WaveformHistoryBlock<'a> {
     block: &'a [u8],
 }
@@ -89,7 +91,7 @@ fn seek_index<'a>(
     let mut last_index = None;
     loop {
         let saved_index = index.clone();
-        let saved_offset = offset.clone();
+        let saved_offset = *offset;
         let saved_consumed_changes = *consumed_changes;
         // Get next
         let Some(next_index) = next_index(block, index, offset, consumed_changes) else {
@@ -98,19 +100,24 @@ fn seek_index<'a>(
             *consumed_changes = saved_consumed_changes;
             return last_index;
         };
-        if next_index.get_timestamp_index() > timestamp_index {
-            *index = saved_index;
-            *offset = saved_offset;
-            *consumed_changes = saved_consumed_changes;
-            return last_index;
-        } else if next_index.get_timestamp_index() == timestamp_index {
-            return Some(next_index);
+        match next_index.get_timestamp_index().cmp(&timestamp_index) {
+            Ordering::Greater => {
+                *index = saved_index;
+                *offset = saved_offset;
+                *consumed_changes = saved_consumed_changes;
+                return last_index;
+            }
+            Ordering::Equal => {
+                return Some(next_index);
+            }
+            Ordering::Less => {
+                last_index = Some(next_index);
+            }
         }
-        last_index = Some(next_index);
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WaveformHistoryBlockRefIter<'a> {
     block: &'a WaveformHistoryBlock<'a>,
     index: WaveformHistoryIndex,
@@ -138,7 +145,7 @@ impl<'a> Iterator for WaveformHistoryBlockRefIter<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         next_index(
-            &mut self.block,
+            self.block,
             &mut self.index,
             &mut self.offset,
             &mut self.consumed_changes,
@@ -151,7 +158,7 @@ impl<'a> WaveformHistoryBlockRefIter<'a> {
     /// the requested timestamp index, returning None if nothing exists before
     pub fn seek(&mut self, timestamp_index: usize) -> Option<WaveformHistoryIndex> {
         seek_index(
-            &mut self.block,
+            self.block,
             &mut self.index,
             &mut self.offset,
             &mut self.consumed_changes,
@@ -160,7 +167,7 @@ impl<'a> WaveformHistoryBlockRefIter<'a> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WaveformHistoryBlockIter<'a> {
     block: WaveformHistoryBlock<'a>,
     index: WaveformHistoryIndex,
@@ -189,7 +196,7 @@ impl<'a> Iterator for WaveformHistoryBlockIter<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         next_index(
-            &mut self.block,
+            &self.block,
             &mut self.index,
             &mut self.offset,
             &mut self.consumed_changes,
@@ -202,7 +209,7 @@ impl<'a> WaveformHistoryBlockIter<'a> {
     /// the requested timestamp index, returning None if nothing exists before
     pub fn seek(&mut self, timestamp_index: usize) -> Option<WaveformHistoryIndex> {
         seek_index(
-            &mut self.block,
+            &self.block,
             &mut self.index,
             &mut self.offset,
             &mut self.consumed_changes,

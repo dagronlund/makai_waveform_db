@@ -21,7 +21,7 @@ pub use crate::bitvector::iter::*;
 // performant data structure for bigger vectors.
 
 #[indiscriminant()]
-#[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum BitVectorRadix {
     Binary = "b",
     Octal = "o",
@@ -30,7 +30,7 @@ pub enum BitVectorRadix {
 }
 
 #[indiscriminant()]
-#[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Logic {
     Zero = "0",
     One = "1",
@@ -40,10 +40,7 @@ pub enum Logic {
 
 impl Logic {
     pub fn is_two_state(&self) -> bool {
-        match self {
-            Self::Zero | Self::One => true,
-            _ => false,
-        }
+        matches!(self, Self::Zero | Self::One)
     }
 
     pub fn to_bool_pair(&self) -> (bool, bool) {
@@ -57,7 +54,7 @@ impl Logic {
 }
 
 #[indiscriminant()]
-#[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Bit {
     Zero = "0",
     One = "1",
@@ -83,10 +80,7 @@ impl From<Bit> for bool {
 
 impl From<Logic> for bool {
     fn from(value: Logic) -> Self {
-        match value {
-            Logic::One => true,
-            _ => false,
-        }
+        matches!(value, Logic::One)
     }
 }
 
@@ -161,7 +155,7 @@ unsafe fn clone_be_bytes_to_usizes(bytes: &[u8], ptr: *mut usize) {
             let mut temp = [0u8; USIZE_BYTES];
             temp[(USIZE_BYTES - byte_index)..USIZE_BYTES].clone_from_slice(&bytes[0..byte_index]);
             let w = usize::from_be_bytes(temp) as usize;
-            *ptr.offset(ptr_index as isize) = w;
+            *ptr.add(ptr_index) = w;
             break;
         } else {
             let w = usize::from_be_bytes(
@@ -169,7 +163,7 @@ unsafe fn clone_be_bytes_to_usizes(bytes: &[u8], ptr: *mut usize) {
                     .try_into()
                     .unwrap(),
             ) as usize;
-            *ptr.offset(ptr_index as isize) = w;
+            *ptr.add(ptr_index) = w;
         }
         ptr_index += 1;
         byte_index -= USIZE_BYTES;
@@ -180,7 +174,7 @@ unsafe fn clone_usizes_to_be_bytes(ptr: *const usize, bytes: &mut [u8]) {
     let mut ptr_index = 0usize;
     let mut byte_index = bytes.len();
     loop {
-        let w = *ptr.offset(ptr_index as isize);
+        let w = *ptr.add(ptr_index);
         if byte_index <= USIZE_BYTES {
             bytes[0..byte_index]
                 .clone_from_slice(&w.to_be_bytes()[(USIZE_BYTES - byte_index)..USIZE_BYTES]);
@@ -211,17 +205,15 @@ impl BitVector {
                     payload: 0 as *mut usize,
                 };
             }
+        } else if bit_width > (usize::BITS as usize) {
+            // Size storage for one bit_width allocation in chunks of usize
+            let words = ((bit_width - 1) / (usize::BITS as usize)) + 1;
+            (words, bit_width | POINTER_TAG)
         } else {
-            if bit_width > (usize::BITS as usize) {
-                // Size storage for one bit_width allocation in chunks of usize
-                let words = ((bit_width - 1) / (usize::BITS as usize)) + 1;
-                (words, bit_width | POINTER_TAG)
-            } else {
-                return Self {
-                    size: bit_width,
-                    payload: 0 as *mut usize,
-                };
-            }
+            return Self {
+                size: bit_width,
+                payload: 0 as *mut usize,
+            };
         };
 
         // Allocate memory for bitvector
@@ -236,7 +228,7 @@ impl BitVector {
             alloc::handle_alloc_error(layout);
         }
         Self {
-            size: size,
+            size,
             payload: ptr as *mut usize,
         }
     }
@@ -258,7 +250,7 @@ impl BitVector {
     pub fn new_unknown_bit() -> Self {
         Self {
             size: 1 | FOUR_STATE_TAG,
-            payload: ((1usize << (usize::BITS / 2)) | 0) as *mut usize,
+            payload: (1usize << (usize::BITS / 2)) as *mut usize,
         }
     }
 
@@ -373,10 +365,7 @@ impl BitVector {
         if bv.is_pointer() {
             unsafe {
                 clone_be_bytes_to_usizes(value, bv.payload);
-                clone_be_bytes_to_usizes(
-                    mask,
-                    bv.payload.offset(bv.get_vector_words_size() as isize),
-                );
+                clone_be_bytes_to_usizes(mask, bv.payload.add(bv.get_vector_words_size()));
             }
         } else {
             let mut payload = 0usize;
@@ -437,7 +426,7 @@ impl BitVector {
             unsafe {
                 clone_usizes_to_be_bytes(self.payload as *const usize, value);
                 clone_usizes_to_be_bytes(
-                    self.payload.offset(self.get_vector_words_size() as isize) as *const usize,
+                    self.payload.add(self.get_vector_words_size()) as *const usize,
                     mask,
                 );
             }
@@ -460,14 +449,14 @@ impl BitVector {
             let bit_index = index % usize::BITS as usize;
             let bit_mask = 1usize << bit_index;
             unsafe {
-                let value_bits = *self.payload.offset(word_index as isize);
-                let mask_bits = *self.payload.offset(word_index_mask as isize);
+                let value_bits = *self.payload.add(word_index);
+                let mask_bits = *self.payload.add(word_index_mask);
                 let value_bits =
                     (value_bits & !bit_mask) | if bit.to_bool_pair().0 { bit_mask } else { 0 };
                 let mask_bits =
                     (mask_bits & !bit_mask) | if bit.to_bool_pair().1 { bit_mask } else { 0 };
-                *self.payload.offset(word_index as isize) = value_bits;
-                *self.payload.offset(word_index_mask as isize) = mask_bits;
+                *self.payload.add(word_index) = value_bits;
+                *self.payload.add(word_index_mask) = mask_bits;
             }
         } else {
             let value_mask = 1usize << index;
@@ -484,8 +473,8 @@ impl BitVector {
             let word_index = index / usize::BITS as usize;
             let word_index_mask = word_index + self.get_vector_words_size();
             let bit_index = index % usize::BITS as usize;
-            let value_bits = unsafe { *self.payload.offset(word_index as isize) };
-            let mask_bits = unsafe { *self.payload.offset(word_index_mask as isize) };
+            let value_bits = unsafe { *self.payload.add(word_index) };
+            let mask_bits = unsafe { *self.payload.add(word_index_mask) };
             Logic::from((
                 ((value_bits >> bit_index) & 1),
                 ((mask_bits >> bit_index) & 1),
@@ -505,10 +494,10 @@ impl BitVector {
             let bit_index = index % usize::BITS as usize;
             let bit_mask = 1usize << bit_index;
             unsafe {
-                let value_bits = *self.payload.offset(word_index as isize);
+                let value_bits = *self.payload.add(word_index);
                 let value_bits =
                     (value_bits & !bit_mask) | if bool::from(bit) { bit_mask } else { 0 };
-                *self.payload.offset(word_index as isize) = value_bits;
+                *self.payload.add(word_index) = value_bits;
             }
         } else {
             let bit_mask = 1usize << index;
@@ -522,7 +511,7 @@ impl BitVector {
         if self.is_pointer() {
             let word_index = index / usize::BITS as usize;
             let bit_index = index % usize::BITS as usize;
-            let value_bits = unsafe { *self.payload.offset(word_index as isize) };
+            let value_bits = unsafe { *self.payload.add(word_index) };
             Bit::from((value_bits >> bit_index) & 1)
         } else {
             Bit::from((self.payload as usize >> index) & 1)

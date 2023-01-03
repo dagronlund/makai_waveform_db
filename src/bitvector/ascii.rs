@@ -12,7 +12,7 @@ impl BitVector {
                 value_bit <<= 1;
                 if i & WORD_INDEX_MASK == WORD_INDEX_MASK || i == bytes.len() - 1 {
                     unsafe {
-                        *bv.payload.offset((i >> WORD_INDEX_WIDTH) as isize) = value;
+                        *bv.payload.add(i >> WORD_INDEX_WIDTH) = value;
                     }
                     value_bit = 1;
                     value = 0;
@@ -52,9 +52,8 @@ impl BitVector {
                 bit <<= 1;
                 if i & WORD_INDEX_MASK == WORD_INDEX_MASK || i == bytes.len() - 1 {
                     unsafe {
-                        *bv.payload.offset((i >> WORD_INDEX_WIDTH) as isize) = value;
-                        *bv.payload
-                            .offset(((i >> WORD_INDEX_WIDTH) + vector_offset) as isize) = mask;
+                        *bv.payload.add(i >> WORD_INDEX_WIDTH) = value;
+                        *bv.payload.add((i >> WORD_INDEX_WIDTH) + vector_offset) = mask;
                     }
                     bit = 1;
                     value = 0;

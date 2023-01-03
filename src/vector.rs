@@ -34,7 +34,7 @@ pub struct WaveformSignalVector {
 impl WaveformSignalVector {
     pub fn new(width: usize) -> Self {
         Self {
-            width: width,
+            width,
             packing: WaveformVectorPacking::new(width),
             history: WaveformHistory::new(),
             vectors: Vec::new(),
@@ -71,7 +71,7 @@ impl WaveformSignalVector {
                 let byte_width = ((bv.get_bit_width() - 1) / 8) + 1;
                 self.vectors.resize(offset + bytes, 0);
                 let (value_vector, mask_vector) =
-                    (&mut self.vectors[offset..offset + bytes]).split_at_mut(bytes / 2);
+                    self.vectors[offset..offset + bytes].split_at_mut(bytes / 2);
                 // Compensate for incoming vectors that are shorter than the allocated space
                 bv.to_be_bytes_four_state(
                     &mut value_vector[(bytes / 2 - byte_width)..(bytes / 2)],
@@ -115,5 +115,9 @@ impl WaveformSignalVector {
 
     pub fn len(&self) -> usize {
         self.vector_index
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.vector_index == 0
     }
 }
