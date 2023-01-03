@@ -1,9 +1,9 @@
 use std::convert::TryInto;
 
-use crate::signal_history::WaveformSignalHistory;
+use crate::history::WaveformHistory;
 
 pub struct WaveformSignalReal {
-    history: WaveformSignalHistory,
+    history: WaveformHistory,
     vectors: Vec<u8>,
     vector_index: usize,
 }
@@ -11,19 +11,18 @@ pub struct WaveformSignalReal {
 impl WaveformSignalReal {
     pub fn new() -> Self {
         Self {
-            history: WaveformSignalHistory::new(),
+            history: WaveformHistory::new(),
             vectors: Vec::new(),
             vector_index: 0,
         }
     }
 
-    pub fn get_history(&self) -> &WaveformSignalHistory {
+    pub fn get_history(&self) -> &WaveformHistory {
         &self.history
     }
 
     pub fn update(&mut self, timestamp_index: usize, value: f64) {
-        self.history
-            .update_block(timestamp_index, self.vector_index);
+        self.history.add_change(timestamp_index, self.vector_index);
         self.vectors.append(&mut value.to_be_bytes().to_vec());
         self.vector_index += 1;
     }

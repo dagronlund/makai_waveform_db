@@ -34,16 +34,16 @@
 
 pub mod bitvector;
 pub mod errors;
-pub mod signal_history;
-pub mod signal_real;
-pub mod signal_vector;
+pub mod history;
+pub mod real;
+pub mod vector;
 
 use std::collections::HashMap;
 
 use crate::bitvector::BitVector;
 use crate::errors::*;
-use crate::signal_real::*;
-use crate::signal_vector::*;
+use crate::real::*;
+use crate::vector::*;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum WaveformSearchMode {
@@ -330,29 +330,28 @@ impl Waveform {
         &self,
         idcode: usize,
         timestamp_index: usize,
+        search_mode: WaveformSearchMode,
         bit_index: Option<usize>,
     ) -> Option<WaveformValueResult> {
         match self.get_signal(idcode) {
             Some(WaveformSignalResult::Vector(signal)) => {
-                let Some(pos) = signal.get_history().search_timestamp_index(timestamp_index) else {
+                let Some(index) = signal.get_history().search_timestamp_index(timestamp_index, search_mode) else {
                     return None
                 };
-                let pos = pos.get_index();
-                let bv = signal.get_bitvector(pos.get_value_index());
+                let bv = signal.get_bitvector(index.get_value_index());
                 let bv = if let Some(index) = bit_index {
                     BitVector::from(bv.get_bit(index))
                 } else {
                     bv
                 };
-                Some(WaveformValueResult::Vector(bv, pos.get_timestamp_index()))
+                Some(WaveformValueResult::Vector(bv, index.get_timestamp_index()))
             }
             Some(WaveformSignalResult::Real(signal)) => {
-                let Some(pos) = signal.get_history().search_timestamp_index(timestamp_index) else {
+                let Some(index) = signal.get_history().search_timestamp_index(timestamp_index, search_mode) else {
                     return None
                 };
-                let pos = pos.get_index();
-                let r = signal.get_real(pos.get_value_index());
-                Some(WaveformValueResult::Real(r, pos.get_timestamp_index()))
+                let r = signal.get_real(index.get_value_index());
+                Some(WaveformValueResult::Real(r, index.get_timestamp_index()))
             }
             None => None,
         }
@@ -362,8 +361,9 @@ impl Waveform {
         &self,
         idcode: usize,
         timestamp_index: usize,
+        search_mode: WaveformSearchMode,
     ) -> Option<WaveformValueResult> {
-        self.search_value_bit_index(idcode, timestamp_index, None)
+        self.search_value_bit_index(idcode, timestamp_index, search_mode, None)
     }
 }
 

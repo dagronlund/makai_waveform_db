@@ -1,5 +1,5 @@
 use crate::bitvector::BitVector;
-use crate::signal_history::WaveformSignalHistory;
+use crate::history::WaveformHistory;
 
 #[derive(Clone, Debug, PartialEq)]
 enum WaveformVectorPacking {
@@ -25,7 +25,7 @@ pub struct WaveformSignalVector {
     width: usize,
     // How many bytes are used to store the four-state vector
     packing: WaveformVectorPacking,
-    history: WaveformSignalHistory,
+    history: WaveformHistory,
     vectors: Vec<u8>,
     vector_index: usize,
     bits_unused: usize,
@@ -36,20 +36,19 @@ impl WaveformSignalVector {
         Self {
             width: width,
             packing: WaveformVectorPacking::new(width),
-            history: WaveformSignalHistory::new(),
+            history: WaveformHistory::new(),
             vectors: Vec::new(),
             vector_index: 0,
             bits_unused: 0,
         }
     }
 
-    pub fn get_history(&self) -> &WaveformSignalHistory {
+    pub fn get_history(&self) -> &WaveformHistory {
         &self.history
     }
 
     pub fn update(&mut self, timestamp_index: usize, bv: BitVector) {
-        self.history
-            .update_block(timestamp_index, self.vector_index);
+        self.history.add_change(timestamp_index, self.vector_index);
         let offset = self.vectors.len();
         match self.packing {
             WaveformVectorPacking::Bits(bits) => {
