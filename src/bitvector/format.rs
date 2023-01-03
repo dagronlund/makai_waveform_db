@@ -98,25 +98,25 @@ impl BitVector {
             match radix {
                 BitVectorRadix::Binary => {
                     for i in (0..self.get_bit_width()).rev() {
-                        write!(f, "{}", if self.get_bit(i).into() { "1" } else { "0" })?;
+                        write!(f, "{}", usize::from(self.get_bit(i)))?;
                     }
                     Ok(())
                 }
                 BitVectorRadix::Octal => {
                     for i in (0..div_ceil(self.get_bit_width(), 3)).map(|i| i * 3).rev() {
-                        let digit = (if self.get_bit(i).into() { 1 } else { 0 })
-                            + (if self.get_bit(i + 1).into() { 2 } else { 0 })
-                            + (if self.get_bit(i + 2).into() { 4 } else { 0 });
+                        let digit = usize::from(self.get_bit(i))
+                            + (usize::from(self.get_bit(i + 1)) << 1)
+                            + (usize::from(self.get_bit(i + 2)) << 2);
                         write!(f, "{}", table[digit])?;
                     }
                     Ok(())
                 }
                 BitVectorRadix::Hexadecimal => {
                     for i in (0..div_ceil(self.get_bit_width(), 4)).map(|i| i * 4).rev() {
-                        let digit = (if self.get_bit(i).into() { 1 } else { 0 })
-                            + (if self.get_bit(i + 1).into() { 2 } else { 0 })
-                            + (if self.get_bit(i + 2).into() { 4 } else { 0 })
-                            + (if self.get_bit(i + 3).into() { 8 } else { 0 });
+                        let digit = usize::from(self.get_bit(i))
+                            + (usize::from(self.get_bit(i + 1)) << 1)
+                            + (usize::from(self.get_bit(i + 2)) << 2)
+                            + (usize::from(self.get_bit(i + 3)) << 3);
                         write!(f, "{}", table[digit])?;
                     }
                     Ok(())

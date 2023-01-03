@@ -84,6 +84,24 @@ impl From<Logic> for bool {
     }
 }
 
+impl From<Bit> for usize {
+    fn from(value: Bit) -> Self {
+        match value {
+            Bit::Zero => 0,
+            Bit::One => 1,
+        }
+    }
+}
+
+impl From<Logic> for usize {
+    fn from(value: Logic) -> Self {
+        match value {
+            Logic::One => 1,
+            _ => 0,
+        }
+    }
+}
+
 impl From<Logic> for Bit {
     fn from(value: Logic) -> Self {
         match value {
@@ -202,7 +220,7 @@ impl BitVector {
             } else {
                 return Self {
                     size: bit_width | FOUR_STATE_TAG,
-                    payload: 0 as *mut usize,
+                    payload: std::ptr::null_mut::<usize>(),
                 };
             }
         } else if bit_width > (usize::BITS as usize) {
@@ -212,7 +230,7 @@ impl BitVector {
         } else {
             return Self {
                 size: bit_width,
-                payload: 0 as *mut usize,
+                payload: std::ptr::null_mut::<usize>(),
             };
         };
 
@@ -236,7 +254,7 @@ impl BitVector {
     pub fn new_zero_bit() -> Self {
         Self {
             size: 1,
-            payload: 0 as *mut usize,
+            payload: std::ptr::null_mut::<usize>(),
         }
     }
 
@@ -417,8 +435,8 @@ impl BitVector {
         );
         if !self.is_four_state() {
             self.to_be_bytes_two_state(value);
-            for i in 0..mask.len() {
-                mask[i] = 0;
+            for m in mask.iter_mut() {
+                *m = 0;
             }
             return;
         }

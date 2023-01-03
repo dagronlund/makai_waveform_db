@@ -158,10 +158,8 @@ impl Waveform {
     pub fn get_signal(&self, id: usize) -> Option<WaveformSignalResult<'_>> {
         if let Some(signal) = self.vector_signals.get(&id) {
             Some(WaveformSignalResult::Vector(signal))
-        } else if let Some(signal) = self.real_signals.get(&id) {
-            Some(WaveformSignalResult::Real(signal))
         } else {
-            None
+            self.real_signals.get(&id).map(WaveformSignalResult::Real)
         }
     }
 
@@ -330,27 +328,25 @@ impl Waveform {
         search_mode: WaveformSearchMode,
         bit_index: Option<usize>,
     ) -> Option<WaveformValueResult> {
-        match self.get_signal(idcode) {
-            Some(WaveformSignalResult::Vector(signal)) => {
-                let Some(index) = signal.get_history().search_timestamp_index(timestamp_index, search_mode) else {
-                    return None
-                };
-                let bv = signal.get_bitvector(index.get_value_index());
-                let bv = if let Some(index) = bit_index {
-                    BitVector::from(bv.get_bit(index))
-                } else {
-                    bv
-                };
-                Some(WaveformValueResult::Vector(bv, index.get_timestamp_index()))
-            }
-            Some(WaveformSignalResult::Real(signal)) => {
-                let Some(index) = signal.get_history().search_timestamp_index(timestamp_index, search_mode) else {
-                    return None
-                };
-                let r = signal.get_real(index.get_value_index());
-                Some(WaveformValueResult::Real(r, index.get_timestamp_index()))
-            }
-            None => None,
+        if let Some(signal) = self.vector_signals.get(&idcode) {
+            let Some(index) = signal.get_history().search_timestamp_index(timestamp_index, search_mode) else {
+                return None
+            };
+            let bv = signal.get_bitvector(index.get_value_index());
+            let bv = if let Some(index) = bit_index {
+                BitVector::from(bv.get_bit(index))
+            } else {
+                bv
+            };
+            Some(WaveformValueResult::Vector(bv, index.get_timestamp_index()))
+        } else if let Some(signal) = self.real_signals.get(&idcode) {
+            let Some(index) = signal.get_history().search_timestamp_index(timestamp_index, search_mode) else {
+                return None
+            };
+            let r = signal.get_real(index.get_value_index());
+            Some(WaveformValueResult::Real(r, index.get_timestamp_index()))
+        } else {
+            None
         }
     }
 
