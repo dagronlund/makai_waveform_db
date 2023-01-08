@@ -1,4 +1,4 @@
-use waveform_db::history::{index::WaveformHistoryIndex, WaveformHistory};
+use makai_waveform_db::history::{index::WaveformHistoryIndex, WaveformHistory};
 
 fn generate_history(num: usize, start: usize) -> (WaveformHistory, Vec<WaveformHistoryIndex>) {
     let mut history = WaveformHistory::new();
@@ -23,7 +23,7 @@ fn generate_history(num: usize, start: usize) -> (WaveformHistory, Vec<WaveformH
 
 #[test]
 fn test_waveform_history_block() {
-    use waveform_db::history::{
+    use makai_waveform_db::history::{
         block::WaveformHistoryBlock, index::WaveformHistoryIndex, BLOCK_SIZE,
     };
 
@@ -152,8 +152,8 @@ fn test_waveform_history_seek() {
 
 #[test]
 fn test_waveform_history_search() {
+    use makai_waveform_db::WaveformSearchMode;
     use rand::Rng;
-    use waveform_db::WaveformSearchMode;
     let mut rng = rand::thread_rng();
 
     let (history, expected) = generate_history(1 << 16, 0);
@@ -225,7 +225,7 @@ fn test_waveform_history_search() {
 
 #[test]
 fn test_waveform_search_timestamp() {
-    use waveform_db::{Waveform, WaveformSearchMode as Mode};
+    use makai_waveform_db::{Waveform, WaveformSearchMode as Mode};
 
     let mut waveform = Waveform::new();
     waveform.insert_timestamp(5).unwrap();
